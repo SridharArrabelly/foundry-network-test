@@ -24,6 +24,18 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
           privateEndpointNetworkPolicies: 'Disabled'
         }
       }
+      {
+        name: 'snet-${prefix}-vm'
+        properties: {
+          addressPrefix: '10.0.2.0/24'
+        }
+      }
+      {
+        name: 'AzureBastionSubnet'
+        properties: {
+          addressPrefix: '10.0.3.0/26'
+        }
+      }
     ]
   }
 }
@@ -31,3 +43,5 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
 output vnetId string = vnet.id
 output vnetName string = vnet.name
 output peSubnetId string = vnet.properties.subnets[0].id
+output vmSubnetId string = vnet.properties.subnets[1].id
+output bastionSubnetId string = vnet.properties.subnets[2].id

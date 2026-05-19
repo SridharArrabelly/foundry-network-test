@@ -9,6 +9,13 @@ param prefix string
 @description('Your public IP to allow portal/API access (leave empty for fully private)')
 param allowedIpAddress string = ''
 
+@description('Admin username for the jumpbox VM')
+param vmAdminUsername string = 'azureadmin'
+
+@secure()
+@description('Admin password for the jumpbox VM')
+param vmAdminPassword string
+
 // --- Network ---
 
 module network 'modules/network.bicep' = {
@@ -65,8 +72,24 @@ module privateEndpoints 'modules/private-endpoints.bicep' = {
   }
 }
 
+// --- Jumpbox VM + Bastion ---
+
+module jumpbox 'modules/jumpbox.bicep' = {
+  name: 'deploy-jumpbox'
+  params: {
+    location: location
+    prefix: prefix
+    vmSubnetId: network.outputs.vmSubnetId
+    bastionSubnetId: network.outputs.bastionSubnetId
+    adminUsername: vmAdminUsername
+    adminPassword: vmAdminPassword
+  }
+}
+
 // --- Outputs ---
 
 output vnetId string = network.outputs.vnetId
 output aiFoundryName string = aiFoundry.outputs.aiFoundryName
 output aiSearchName string = aiSearch.outputs.searchName
+output jumpboxVmName string = jumpbox.outputs.vmName
+output bastionName string = jumpbox.outputs.bastionName
