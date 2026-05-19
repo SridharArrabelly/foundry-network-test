@@ -6,6 +6,9 @@ param location string
 @description('Resource name prefix (lowercase, no special chars)')
 param prefix string
 
+@description('Your public IP to allow portal/API access (leave empty for fully private)')
+param allowedIpAddress string = ''
+
 // --- Network ---
 
 module network 'modules/network.bicep' = {
@@ -23,6 +26,7 @@ module aiFoundry 'modules/ai-foundry.bicep' = {
   params: {
     location: location
     prefix: prefix
+    allowedIpAddress: allowedIpAddress
   }
 }
 
@@ -33,6 +37,7 @@ module aiSearch 'modules/ai-search.bicep' = {
   params: {
     location: location
     prefix: prefix
+    allowedIpAddress: allowedIpAddress
   }
 }
 

@@ -4,6 +4,9 @@ param location string
 @description('Resource name prefix')
 param prefix string
 
+@description('Your public IP address to allow portal/API access (leave empty to block all public access)')
+param allowedIpAddress string = ''
+
 var accountName = 'ais-${prefix}'
 
 resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
@@ -18,10 +21,16 @@ resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   }
   properties: {
     customSubDomainName: accountName
-    publicNetworkAccess: 'Disabled'
+    publicNetworkAccess: empty(allowedIpAddress) ? 'Disabled' : 'Enabled'
     allowProjectManagement: true
     networkAcls: {
       defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      ipRules: empty(allowedIpAddress) ? [] : [
+        {
+          value: allowedIpAddress
+        }
+      ]
     }
   }
 }

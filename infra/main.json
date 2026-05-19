@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "9569425813444627014"
+      "templateHash": "14348134381481828819"
     }
   },
   "parameters": {
@@ -19,6 +19,13 @@
       "type": "string",
       "metadata": {
         "description": "Resource name prefix (lowercase, no special chars)"
+      }
+    },
+    "allowedIpAddress": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Your public IP to allow portal/API access (leave empty for fully private)"
       }
     }
   },
@@ -124,6 +131,9 @@
           },
           "prefix": {
             "value": "[parameters('prefix')]"
+          },
+          "allowedIpAddress": {
+            "value": "[parameters('allowedIpAddress')]"
           }
         },
         "template": {
@@ -133,7 +143,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "18105676819509723770"
+              "templateHash": "12340798308847603842"
             }
           },
           "parameters": {
@@ -147,6 +157,13 @@
               "type": "string",
               "metadata": {
                 "description": "Resource name prefix"
+              }
+            },
+            "allowedIpAddress": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Your public IP address to allow portal/API access (leave empty to block all public access)"
               }
             }
           },
@@ -168,10 +185,12 @@
               },
               "properties": {
                 "customSubDomainName": "[variables('accountName')]",
-                "publicNetworkAccess": "Disabled",
+                "publicNetworkAccess": "[if(empty(parameters('allowedIpAddress')), 'Disabled', 'Enabled')]",
                 "allowProjectManagement": true,
                 "networkAcls": {
-                  "defaultAction": "Deny"
+                  "defaultAction": "Deny",
+                  "bypass": "AzureServices",
+                  "ipRules": "[if(empty(parameters('allowedIpAddress')), createArray(), createArray(createObject('value', parameters('allowedIpAddress'))))]"
                 }
               }
             },
@@ -260,6 +279,9 @@
           },
           "prefix": {
             "value": "[parameters('prefix')]"
+          },
+          "allowedIpAddress": {
+            "value": "[parameters('allowedIpAddress')]"
           }
         },
         "template": {
@@ -269,7 +291,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "17613405008366534361"
+              "templateHash": "818297169545714220"
             }
           },
           "parameters": {
@@ -283,6 +305,13 @@
               "type": "string",
               "metadata": {
                 "description": "Resource name prefix"
+              }
+            },
+            "allowedIpAddress": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Your public IP address to allow portal/API access (leave empty to block all public access)"
               }
             }
           },
@@ -303,9 +332,13 @@
               },
               "properties": {
                 "hostingMode": "Default",
-                "publicNetworkAccess": "disabled",
+                "publicNetworkAccess": "[if(empty(parameters('allowedIpAddress')), 'disabled', 'enabled')]",
                 "partitionCount": 1,
-                "replicaCount": 1
+                "replicaCount": 1,
+                "networkRuleSet": {
+                  "ipRules": "[if(empty(parameters('allowedIpAddress')), createArray(), createArray(createObject('value', parameters('allowedIpAddress'))))]",
+                  "bypass": "AzureServices"
+                }
               }
             }
           ],
