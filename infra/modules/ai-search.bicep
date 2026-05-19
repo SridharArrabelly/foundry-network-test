@@ -23,6 +23,11 @@ resource aiSearch 'Microsoft.Search/searchServices@2025-05-01' = {
     publicNetworkAccess: empty(allowedIpAddress) ? 'disabled' : 'enabled'
     partitionCount: 1
     replicaCount: 1
+    authOptions: {
+      aadOrApiKey: {
+        aadAuthFailureMode: 'http401WithBearerChallenge'
+      }
+    }
     networkRuleSet: {
       ipRules: empty(allowedIpAddress) ? [] : [
         {

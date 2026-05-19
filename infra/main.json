@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "11189155423513379697"
+      "templateHash": "17697525768230360808"
     }
   },
   "parameters": {
@@ -324,7 +324,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.43.8.12551",
-              "templateHash": "818297169545714220"
+              "templateHash": "6016971028446987909"
             }
           },
           "parameters": {
@@ -368,6 +368,11 @@
                 "publicNetworkAccess": "[if(empty(parameters('allowedIpAddress')), 'disabled', 'enabled')]",
                 "partitionCount": 1,
                 "replicaCount": 1,
+                "authOptions": {
+                  "aadOrApiKey": {
+                    "aadAuthFailureMode": "http401WithBearerChallenge"
+                  }
+                },
                 "networkRuleSet": {
                   "ipRules": "[if(empty(parameters('allowedIpAddress')), createArray(), createArray(createObject('value', parameters('allowedIpAddress'))))]",
                   "bypass": "AzureServices"
