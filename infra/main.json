@@ -5,13 +5,12 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "7116918474529708001"
+      "templateHash": "11436987897362172822"
     }
   },
   "parameters": {
     "location": {
       "type": "string",
-      "defaultValue": "[resourceGroup().location]",
       "metadata": {
         "description": "Azure region for all resources"
       }

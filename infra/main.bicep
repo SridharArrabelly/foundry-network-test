@@ -1,7 +1,7 @@
 targetScope = 'resourceGroup'
 
 @description('Azure region for all resources')
-param location string = resourceGroup().location
+param location string
 
 @description('Resource name prefix (lowercase, no special chars)')
 param prefix string
