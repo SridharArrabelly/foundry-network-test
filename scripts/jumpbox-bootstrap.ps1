@@ -85,6 +85,8 @@ Write-Step "Python: $pythonExe"
 $pythonHome = Split-Path -Parent $pythonExe
 $env:PYTHONHOME = $pythonHome
 $env:PYTHONPATH = ''
+$env:PYTHONIOENCODING = 'utf-8'
+$env:PYTHONUTF8 = '1'
 Write-Step "PYTHONHOME=$pythonHome"
 
 # 2) Download repo archive.
