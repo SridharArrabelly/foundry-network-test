@@ -26,7 +26,7 @@ Write-Host "  Foundry:  $($env:AI_FOUNDRY_ENDPOINT)"
 $scriptPath = Join-Path $PSScriptRoot 'jumpbox-bootstrap.ps1'
 
 Write-Host "==> Invoking jumpbox bootstrap (this can take 5-10 min on first run)..." -ForegroundColor Yellow
-az vm run-command invoke `
+$rcJson = az vm run-command invoke `
     --resource-group $env:AZURE_RESOURCE_GROUP `
     --name $env:JUMPBOX_VM_NAME `
     --command-id RunPowerShellScript `
@@ -39,4 +39,18 @@ az vm run-command invoke `
         "AiSearchIndexName=$indexName" `
         "EmbeddingModel=$embedModel" `
         "EmbeddingDimensions=$embedDims" `
-    --output json
+    --output json | Out-String
+
+$rc = $rcJson | ConvertFrom-Json
+$stdout = ($rc.value | Where-Object { $_.code -like '*StdOut*' } | Select-Object -First 1).message
+$stderr = ($rc.value | Where-Object { $_.code -like '*StdErr*' } | Select-Object -First 1).message
+
+Write-Host '--- jumpbox stdout ---'
+Write-Host $stdout
+if ($stderr -and $stderr.Trim()) {
+    Write-Host '--- jumpbox stderr ---' -ForegroundColor Red
+    Write-Host $stderr -ForegroundColor Red
+    throw "Indexer failed on jumpbox. See stderr above."
+}
+
+Write-Host "==> Indexer completed successfully on jumpbox." -ForegroundColor Green

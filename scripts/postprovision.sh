@@ -27,7 +27,7 @@ echo "  Foundry: $AI_FOUNDRY_ENDPOINT"
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/jumpbox-bootstrap.ps1"
 
 echo "==> Invoking jumpbox bootstrap (this can take 5-10 min on first run)..."
-az vm run-command invoke \
+RC_OUTPUT="$(az vm run-command invoke \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --name "$JUMPBOX_VM_NAME" \
   --command-id RunPowerShellScript \
@@ -40,4 +40,21 @@ az vm run-command invoke \
       "AiSearchIndexName=$INDEX_NAME" \
       "EmbeddingModel=$EMBED_MODEL" \
       "EmbeddingDimensions=$EMBED_DIMS" \
-  --output json
+  --output json)"
+
+# Parse stdout / stderr emitted by the run-command extension on the VM.
+# az vm run-command exits 0 as long as the agent ran, even if the inner script failed,
+# so we inspect the StdErr block ourselves and exit non-zero if it has content.
+STDOUT="$(echo "$RC_OUTPUT" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next((v["message"] for v in d.get("value",[]) if "StdOut" in v.get("code","")), ""))')"
+STDERR="$(echo "$RC_OUTPUT" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next((v["message"] for v in d.get("value",[]) if "StdErr" in v.get("code","")), ""))')"
+
+echo "--- jumpbox stdout ---"
+echo "$STDOUT"
+if [[ -n "${STDERR// /}" ]]; then
+    echo "--- jumpbox stderr ---" >&2
+    echo "$STDERR" >&2
+    echo "Indexer failed on jumpbox. See stderr above." >&2
+    exit 1
+fi
+
+echo "==> Indexer completed successfully on jumpbox."
