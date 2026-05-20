@@ -209,6 +209,9 @@ foundry-network-test/
 | Postprovision hook fails: "VM not found" | Check `azd env get-values` includes `JUMPBOX_VM_NAME` and `AZURE_RESOURCE_GROUP`. Re-run `azd provision` if missing. |
 | `az vm run-command` times out | The bootstrap takes up to 10 min on first run (Python install). Retry with `azd hooks run postprovision`. |
 | Hook prints "Indexer failed on jumpbox" with stderr | The bootstrap surfaces the VM-side error. Common causes: parser errors if you edit `jumpbox-bootstrap.ps1` with PowerShell 7+ syntax (the VM runs Windows PowerShell **5.1** — avoid `?.`, `??`, ternary, etc.); or transient RBAC propagation (re-run the hook after a few minutes). |
+| Python installer returns exit code `1603` | Python is already installed on the jumpbox from a prior run. The bootstrap checks `C:\Python312\python.exe` first to skip re-install — pull latest and re-run the hook. |
+| `ModuleNotFoundError: No module named 'encodings'` on the jumpbox | Python's `sys.prefix` was derived from cwd instead of the install dir. The bootstrap sets `PYTHONHOME` to pin it. Pull latest. |
+| `UnicodeEncodeError: 'charmap' codec can't encode` on the jumpbox | Windows console defaults to cp1252. The bootstrap sets `PYTHONIOENCODING=utf-8` and `PYTHONUTF8=1`. Pull latest. |
 
 ## Cleanup
 
