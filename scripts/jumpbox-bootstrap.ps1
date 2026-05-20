@@ -36,7 +36,7 @@ $workDir = "$env:TEMP\foundry-network-test"
 if (Test-Path $workDir) { Remove-Item -Recurse -Force $workDir }
 New-Item -ItemType Directory -Path $workDir | Out-Null
 
-$archiveUrl = "$($RepoUrl.TrimEnd('.git'))/archive/refs/heads/$RepoBranch.zip"
+$archiveUrl = "$($RepoUrl -replace '\.git$','')/archive/refs/heads/$RepoBranch.zip"
 $zipPath = "$env:TEMP\repo.zip"
 Write-Step "Downloading $archiveUrl"
 Invoke-WebRequest -Uri $archiveUrl -OutFile $zipPath -UseBasicParsing
