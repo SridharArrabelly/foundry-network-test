@@ -36,7 +36,8 @@ resource aiFoundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
 }
 
 // --- Foundry Project ---
-
+// Serialize after deployments to avoid IfMatchPreconditionFailed races on the
+// parent account (both project and deployments are children of aiFoundry).
 resource foundryProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = {
   parent: aiFoundry
   name: '${prefix}-project'
@@ -45,6 +46,10 @@ resource foundryProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-0
     type: 'SystemAssigned'
   }
   properties: {}
+  dependsOn: [
+    embeddingDeployment
+    gpt4MiniDeployment
+  ]
 }
 
 // --- Model Deployments (on the project) ---
