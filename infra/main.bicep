@@ -1,10 +1,16 @@
-targetScope = 'resourceGroup'
+targetScope = 'subscription'
 
+@minLength(1)
+@maxLength(64)
+@description('Name of the azd environment. Used to tag the resource group and (by default) as the resource name prefix.')
+param environmentName string
+
+@minLength(1)
 @description('Azure region for all resources')
 param location string
 
-@description('Resource name prefix (lowercase, no special chars)')
-param prefix string
+@description('Resource name prefix (lowercase, no special chars). Defaults to environmentName.')
+param prefix string = toLower(replace(environmentName, '-', ''))
 
 @description('Your public IP to allow portal/API access (leave empty for fully private)')
 param allowedIpAddress string = ''
@@ -13,83 +19,35 @@ param allowedIpAddress string = ''
 param vmAdminUsername string = 'azureadmin'
 
 @secure()
-@description('Admin password for the jumpbox VM')
+@description('Admin password for the jumpbox VM (12+ chars, upper/lower/number/special)')
 param vmAdminPassword string
 
-// --- Network ---
-
-module network 'modules/network.bicep' = {
-  name: 'deploy-network'
-  params: {
-    location: location
-    prefix: prefix
-  }
+var tags = {
+  'azd-env-name': environmentName
 }
 
-// --- AI Foundry ---
-
-module aiFoundry 'modules/ai-foundry.bicep' = {
-  name: 'deploy-ai-foundry'
-  params: {
-    location: location
-    prefix: prefix
-    allowedIpAddress: allowedIpAddress
-  }
+resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: 'rg-${environmentName}'
+  location: location
+  tags: tags
 }
 
-// --- AI Search ---
-
-module aiSearch 'modules/ai-search.bicep' = {
-  name: 'deploy-ai-search'
+module resources 'resources.bicep' = {
+  name: 'resources'
+  scope: rg
   params: {
     location: location
     prefix: prefix
     allowedIpAddress: allowedIpAddress
+    vmAdminUsername: vmAdminUsername
+    vmAdminPassword: vmAdminPassword
   }
 }
 
-// --- Role Assignments (Foundry system MI → Search) ---
-
-module roleAssignments 'modules/role-assignments.bicep' = {
-  name: 'deploy-role-assignments'
-  params: {
-    aiFoundryPrincipalId: aiFoundry.outputs.aiFoundryPrincipalId
-    searchId: aiSearch.outputs.searchId
-  }
-}
-
-// --- Private Endpoints + DNS ---
-
-module privateEndpoints 'modules/private-endpoints.bicep' = {
-  name: 'deploy-private-endpoints'
-  params: {
-    location: location
-    prefix: prefix
-    peSubnetId: network.outputs.peSubnetId
-    vnetId: network.outputs.vnetId
-    aiFoundryId: aiFoundry.outputs.aiFoundryId
-    searchId: aiSearch.outputs.searchId
-  }
-}
-
-// --- Jumpbox VM + Bastion ---
-
-module jumpbox 'modules/jumpbox.bicep' = {
-  name: 'deploy-jumpbox'
-  params: {
-    location: location
-    prefix: prefix
-    vmSubnetId: network.outputs.vmSubnetId
-    bastionSubnetId: network.outputs.bastionSubnetId
-    adminUsername: vmAdminUsername
-    adminPassword: vmAdminPassword
-  }
-}
-
-// --- Outputs ---
-
-output vnetId string = network.outputs.vnetId
-output aiFoundryName string = aiFoundry.outputs.aiFoundryName
-output aiSearchName string = aiSearch.outputs.searchName
-output jumpboxVmName string = jumpbox.outputs.vmName
-output bastionName string = jumpbox.outputs.bastionName
+output AZURE_LOCATION string = location
+output AZURE_RESOURCE_GROUP string = rg.name
+output AI_FOUNDRY_NAME string = resources.outputs.aiFoundryName
+output AI_SEARCH_NAME string = resources.outputs.aiSearchName
+output JUMPBOX_VM_NAME string = resources.outputs.jumpboxVmName
+output BASTION_NAME string = resources.outputs.bastionName
+output VNET_ID string = resources.outputs.vnetId

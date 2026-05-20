@@ -58,7 +58,8 @@ End-to-end private networking test for **Azure AI Foundry** and **Azure AI Searc
 
 ## Prerequisites
 
-- Azure CLI (`az`) installed and authenticated
+- [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) installed
+- Azure CLI (`az`) installed and authenticated (used by `azd` for some operations)
 - Subscription with **Owner** role (or Contributor + RBAC Administrator)
 - Python 3.10+ (for the indexing script)
 
@@ -66,21 +67,32 @@ End-to-end private networking test for **Azure AI Foundry** and **Azure AI Searc
 
 ### 1. Deploy Infrastructure
 
-```powershell
-cd C:\Users\sarrabelly\Documents\GitHub\foundry-network-test
-.\deploy.ps1
+```bash
+# First time only: log in and create an environment
+azd auth login
+azd env new <your-env-name>     # pick any name, e.g. foundry-net-dev
+
+# (Optional) set non-default values BEFORE running azd up
+azd env set ALLOWED_IP_ADDRESS  <your.public.ip>
+azd env set VM_ADMIN_USERNAME   azureadmin
+azd env set PREFIX              <lowercase-prefix>   # defaults to env name
+
+# Deploy
+azd up
 ```
 
-The script prompts for:
-| Parameter | Description |
-|-----------|-------------|
-| Subscription ID | Target Azure subscription |
-| Resource Group | Resource group name (created if it doesn't exist) |
-| Location | Azure region (e.g. `australiaeast`, `eastus`) |
-| Prefix | Naming prefix for all resources (lowercase, no special chars) |
-| Allowed IP | Your public IP for portal access (optional, leave empty for fully private) |
-| VM Admin Username | Jumpbox admin user (default: `azureadmin`) |
-| VM Admin Password | Jumpbox admin password (12+ chars, upper/lower/number/special) |
+`azd up` will prompt for the Azure subscription, location, and the required `vmAdminPassword` (stored securely, not written to disk). All other values come from the azd environment.
+
+Environment variables consumed by `infra/main.parameters.json`:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AZURE_ENV_NAME` | yes (set by `azd env new`) | Used to name the resource group (`rg-<env>`) and tag resources |
+| `AZURE_LOCATION` | yes (prompted by `azd up`) | Azure region (e.g. `australiaeast`, `eastus`) |
+| `PREFIX` | no | Resource name prefix (lowercase, no special chars). Defaults to `AZURE_ENV_NAME` |
+| `ALLOWED_IP_ADDRESS` | no | Your public IP for portal access. Empty = fully private |
+| `VM_ADMIN_USERNAME` | no | Jumpbox admin user (default: `azureadmin`) |
+| `VM_ADMIN_PASSWORD` | yes (prompted) | Jumpbox admin password (12+ chars, upper/lower/number/special) |
 
 ### 2. Connect to Jumpbox via Bastion
 
@@ -133,16 +145,18 @@ CHUNK_OVERLAP=200
 ```
 foundry-network-test/
 ├── .env                          # Configuration (git-ignored)
+├── .azure/                       # azd environment state (git-ignored)
 ├── .gitignore
-├── deploy.ps1                    # PowerShell deployment script
-├── deploy.sh                     # Bash deployment script
+├── azure.yaml                    # azd project definition
 ├── README.md
 ├── data/                         # Drop .docx files here for indexing
 ├── scripts/
 │   ├── requirements.txt          # Python dependencies
 │   └── setup_aisearch_index.py   # Creates index, chunks, embeds, uploads
 └── infra/
-    ├── main.bicep                # Orchestrator (resource group scope)
+    ├── main.bicep                # Subscription-scope entry point (creates RG)
+    ├── main.parameters.json      # azd → bicep parameter bindings
+    ├── resources.bicep           # Resource-group-scope orchestrator
     └── modules/
         ├── network.bicep         # VNet + subnets (PE, VM, Bastion)
         ├── ai-foundry.bicep      # AI Services + project + model deployments
@@ -170,6 +184,8 @@ foundry-network-test/
 
 ## Cleanup
 
-```powershell
-az group delete --name <resource-group> --yes --no-wait
+```bash
+azd down --purge --force
 ```
+
+`--purge` permanently removes soft-deleted Cognitive Services / Key Vault resources so the prefix can be reused. Omit `--force` if you want to be prompted for confirmation.

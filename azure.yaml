@@ -1,0 +1,9 @@
+#  yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: foundry-network-test
+metadata:
+  template: foundry-network-test@0.0.1
+infra:
+  provider: bicep
+  path: infra
+  module: main
