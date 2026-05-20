@@ -59,7 +59,8 @@ End-to-end private networking test for **Azure AI Foundry** and **Azure AI Searc
 | text-embedding-3-large | Model deployment (GlobalStandard) | Embedding model for vectorizing documents (3072 dims) |
 | gpt-4.1-mini | Model deployment (GlobalStandard) | Chat/completion model |
 | AI Search | `Microsoft.Search/searchServices` (basic) | Search index for document chunks |
-| RBAC: Foundry MI → Search | Search Index Data Contributor + Search Service Contributor | Lets Foundry read/write the search index |
+| RBAC: Foundry account MI → Search | Search Index Data Contributor + Search Service Contributor | Lets the Foundry account read/write the search index |
+| RBAC: Foundry **project** MI → Search | Search Index Data Contributor + Search Service Contributor | Lets agents (which run as the project MI) use the AI Search tool |
 | RBAC: Jumpbox MI → Search | Search Index Data Contributor + Search Service Contributor | Lets the indexer (running on the jumpbox) create the index and upload chunks |
 | RBAC: Jumpbox MI → Foundry | Cognitive Services OpenAI User | Lets the indexer call the embedding model |
 | Private Endpoint (Foundry) | `Microsoft.Network/privateEndpoints` | Private connectivity to AI Foundry |
@@ -188,7 +189,7 @@ foundry-network-test/
         ├── network.bicep         # VNet + subnets (PE, VM, Bastion)
         ├── ai-foundry.bicep      # AI Services + project + model deployments
         ├── ai-search.bicep       # AI Search (basic SKU)
-        ├── role-assignments.bicep # RBAC: Foundry MI + Jumpbox MI → Search + Foundry
+        ├── role-assignments.bicep # RBAC: Foundry account MI + project MI + Jumpbox MI → Search/Foundry
         ├── private-endpoints.bicep # PEs + DNS zones + VNet links
         └── jumpbox.bicep         # Windows VM (System MI) + Azure Bastion
 ```
@@ -217,6 +218,7 @@ foundry-network-test/
 | `ModuleNotFoundError: No module named 'encodings'` on the jumpbox | Python's `sys.prefix` was derived from cwd instead of the install dir. The bootstrap sets `PYTHONHOME` to pin it. Pull latest. |
 | `UnicodeEncodeError: 'charmap' codec can't encode` on the jumpbox | Windows console defaults to cp1252. The bootstrap sets `PYTHONIOENCODING=utf-8` and `PYTHONUTF8=1`. Pull latest. |
 | Foundry portal (Agents page) on the jumpbox shows **"Public access is disabled. Please configure private endpoint."** | The Foundry Agents experience calls `*.openai.azure.com` and `*.services.ai.azure.com` in addition to `*.cognitiveservices.azure.com`. All three `privatelink.*` zones must be linked to the VNet and attached to the Foundry PE's DNS zone group (the template does this). If you see this on an environment provisioned before this fix, run `azd provision` to add the missing zones. |
+| Agent run with AI Search tool fails: **"Invalid endpoint or connection failed."** | The agent calls Search using the Foundry **project's** managed identity (visible as `Project Managed Identity` on the connection). That MI needs `Search Index Data Contributor` + `Search Service Contributor` on the search service. The template now grants these — `azd provision` to apply, then wait ~2–5 min for RBAC propagation before re-running the agent. |
 
 ## Cleanup
 
