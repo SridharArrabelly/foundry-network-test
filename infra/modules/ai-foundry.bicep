@@ -86,4 +86,4 @@ output aiFoundryId string = aiFoundry.id
 output aiFoundryName string = aiFoundry.name
 output aiFoundryEndpoint string = 'https://${accountName}.cognitiveservices.azure.com'
 output aiFoundryPrincipalId string = aiFoundry.identity.principalId
-output aiFoundryProjectPrincipalId string = aiProject.identity.principalId
+output aiFoundryProjectPrincipalId string = foundryProject.identity.principalId
