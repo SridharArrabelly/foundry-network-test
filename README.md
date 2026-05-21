@@ -206,6 +206,44 @@ foundry-network-test/
 2. **Jumpbox → AI Search / Foundry (indexer)**: VM resolves the privatelink DNS zones to PE IPs, authenticates with the VM's system-assigned MI, and calls both services over the private endpoints.
 3. **You → Foundry/Search portals**: Connect to the jumpbox via Bastion; the VM resolves private DNS to PE IPs.
 4. **Cloud Shell / your laptop → Jumpbox indexer**: The `postprovision` hook reaches the jumpbox via the Azure ARM control plane (`az vm run-command`), which does not require network connectivity to the private endpoints from your machine.
+5. **Foundry Agent runtime → AI Search (the "AI Search tool")**: This is the trickiest path — see below.
+
+## Foundry Agent runtime networking (Managed VNet)
+
+> **Why this matters:** When you click *Run* on an agent that uses the **AI Search tool**, the call to AI Search does **not** come from your VNet, your jumpbox, or the Foundry account's PE. It comes from the **Foundry Agent runtime**, which runs on Microsoft-managed compute *outside* your VNet. With AI Search set to `publicNetworkAccess: disabled`, that runtime has no path to your Search service — agent runs fail with **"Invalid endpoint or connection failed."** RBAC alone does not fix this.
+
+This template solves it using **Foundry Managed Virtual Network** (GA, May 2026):
+
+```
+   ┌────────────────────────────────────────────┐
+   │ Microsoft-managed VNet (per Foundry acct)  │
+   │  ┌────────────────────────────────────┐    │
+   │  │  Agent runtime + Evaluations       │    │
+   │  └────────────┬───────────────────────┘    │
+   │               │ (approved outbound)        │
+   │               ▼                            │
+   │  ┌────────────────────────────────────┐    │
+   │  │  Managed Private Endpoint → Search │────┼──► Your private srch-… (PE-only)
+   │  └────────────────────────────────────┘    │
+   └────────────────────────────────────────────┘
+```
+
+How it's configured in this template (`infra/modules/ai-foundry.bicep`):
+
+1. **Account property** `networkInjections: [{ scenario: 'agent', useMicrosoftManagedNetwork: true }]` tells Foundry to host its agent runtime in a Microsoft-managed VNet.
+2. **Sub-resource** `accounts/managednetworks/default` with `IsolationMode: AllowOnlyApprovedOutbound` provisions that VNet and locks outbound to approved targets only.
+3. **Project connection** (`accounts/projects/connections`, category `CognitiveSearch`, authType `AAD`) targets the AI Search resource. Foundry sees that the target service supports private link and **auto-creates a managed private endpoint** from the managed VNet to the Search service.
+4. **Role assignment** — the Foundry account's MI gets `Azure AI Enterprise Network Connection Approver` on the resource group so it can auto-approve that managed PE.
+5. **Project MI RBAC** — the project's system-assigned MI gets `Search Index Data Contributor` + `Search Service Contributor` on the Search service (agent calls authenticate as the project MI, *not* the account MI).
+
+### Two requirements, both must be met
+
+| Requirement | Without it | With it |
+|---|---|---|
+| **RBAC** (project MI → Search data plane) | 403 Forbidden | Allowed |
+| **Network reachability** (managed VNet → private Search) | Connection refused / "Invalid endpoint" | Reachable via managed PE |
+
+If you provisioned an environment *before* commit `fb84950`, run `azd provision` (or the equivalent `az deployment group create`) to apply both. After deployment allow ~2–5 min for RBAC propagation and managed PE provisioning before re-running the agent.
 
 ## Troubleshooting
 
