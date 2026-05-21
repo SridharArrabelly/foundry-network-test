@@ -183,7 +183,6 @@ module roleAssignments 'modules/role-assignments.bicep' = {
   name: 'deploy-role-assignments'
   params: {
     aiFoundryPrincipalId: foundryAccount.outputs.aiFoundryPrincipalId
-    aiFoundryProjectPrincipalId: foundryProject.outputs.projectPrincipalId
     aiFoundryId: foundryAccount.outputs.aiFoundryId
     searchId: aiSearch.outputs.searchId
     jumpboxPrincipalId: jumpbox.outputs.vmPrincipalId
