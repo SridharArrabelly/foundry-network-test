@@ -16,6 +16,12 @@ param aiFoundryId string
 @description('AI Search resource ID')
 param searchId string
 
+@description('Cosmos DB account resource ID')
+param cosmosId string
+
+@description('Storage account resource ID')
+param storageId string
+
 // --- Private DNS Zones ---
 
 resource dnsZoneFoundry 'Microsoft.Network/privateDnsZones@2024-06-01' = {
@@ -38,6 +44,16 @@ resource dnsZoneSearch 'Microsoft.Network/privateDnsZones@2024-06-01' = {
   location: 'global'
 }
 
+resource dnsZoneCosmos 'Microsoft.Network/privateDnsZones@2024-06-01' = {
+  name: 'privatelink.documents.azure.com'
+  location: 'global'
+}
+
+resource dnsZoneBlob 'Microsoft.Network/privateDnsZones@2024-06-01' = {
+  name: 'privatelink.blob.${environment().suffixes.storage}'
+  location: 'global'
+}
+
 // --- VNet Links ---
 
 resource vnetLinkFoundry 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
@@ -45,9 +61,7 @@ resource vnetLinkFoundry 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@
   name: 'link-${prefix}-foundry'
   location: 'global'
   properties: {
-    virtualNetwork: {
-      id: vnetId
-    }
+    virtualNetwork: { id: vnetId }
     registrationEnabled: false
   }
 }
@@ -57,9 +71,7 @@ resource vnetLinkOpenAI 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2
   name: 'link-${prefix}-openai'
   location: 'global'
   properties: {
-    virtualNetwork: {
-      id: vnetId
-    }
+    virtualNetwork: { id: vnetId }
     registrationEnabled: false
   }
 }
@@ -69,9 +81,7 @@ resource vnetLinkAIServices 'Microsoft.Network/privateDnsZones/virtualNetworkLin
   name: 'link-${prefix}-aiservices'
   location: 'global'
   properties: {
-    virtualNetwork: {
-      id: vnetId
-    }
+    virtualNetwork: { id: vnetId }
     registrationEnabled: false
   }
 }
@@ -81,30 +91,46 @@ resource vnetLinkSearch 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2
   name: 'link-${prefix}-search'
   location: 'global'
   properties: {
-    virtualNetwork: {
-      id: vnetId
-    }
+    virtualNetwork: { id: vnetId }
+    registrationEnabled: false
+  }
+}
+
+resource vnetLinkCosmos 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
+  parent: dnsZoneCosmos
+  name: 'link-${prefix}-cosmos'
+  location: 'global'
+  properties: {
+    virtualNetwork: { id: vnetId }
+    registrationEnabled: false
+  }
+}
+
+resource vnetLinkBlob 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = {
+  parent: dnsZoneBlob
+  name: 'link-${prefix}-blob'
+  location: 'global'
+  properties: {
+    virtualNetwork: { id: vnetId }
     registrationEnabled: false
   }
 }
 
 // --- Private Endpoints ---
+// Serialize PE creation to avoid IfMatchPreconditionFailed: all PEs target
+// the same subnet and ARM PATCHes the subnet on each PE create.
 
 resource peFoundry 'Microsoft.Network/privateEndpoints@2024-07-01' = {
   name: 'pep-${prefix}-foundry'
   location: location
   properties: {
-    subnet: {
-      id: peSubnetId
-    }
+    subnet: { id: peSubnetId }
     privateLinkServiceConnections: [
       {
         name: 'plsc-${prefix}-foundry'
         properties: {
           privateLinkServiceId: aiFoundryId
-          groupIds: [
-            'account'
-          ]
+          groupIds: ['account']
         }
       }
     ]
@@ -114,23 +140,51 @@ resource peFoundry 'Microsoft.Network/privateEndpoints@2024-07-01' = {
 resource peSearch 'Microsoft.Network/privateEndpoints@2024-07-01' = {
   name: 'pep-${prefix}-search'
   location: location
-  // Serialize PE creation to avoid IfMatchPreconditionFailed: both PEs target
-  // the same subnet and ARM PATCHes the subnet on each PE create.
-  dependsOn: [
-    peFoundry
-  ]
+  dependsOn: [peFoundry]
   properties: {
-    subnet: {
-      id: peSubnetId
-    }
+    subnet: { id: peSubnetId }
     privateLinkServiceConnections: [
       {
         name: 'plsc-${prefix}-search'
         properties: {
           privateLinkServiceId: searchId
-          groupIds: [
-            'searchService'
-          ]
+          groupIds: ['searchService']
+        }
+      }
+    ]
+  }
+}
+
+resource peCosmos 'Microsoft.Network/privateEndpoints@2024-07-01' = {
+  name: 'pep-${prefix}-cosmos'
+  location: location
+  dependsOn: [peSearch]
+  properties: {
+    subnet: { id: peSubnetId }
+    privateLinkServiceConnections: [
+      {
+        name: 'plsc-${prefix}-cosmos'
+        properties: {
+          privateLinkServiceId: cosmosId
+          groupIds: ['Sql']
+        }
+      }
+    ]
+  }
+}
+
+resource peStorageBlob 'Microsoft.Network/privateEndpoints@2024-07-01' = {
+  name: 'pep-${prefix}-blob'
+  location: location
+  dependsOn: [peCosmos]
+  properties: {
+    subnet: { id: peSubnetId }
+    privateLinkServiceConnections: [
+      {
+        name: 'plsc-${prefix}-blob'
+        properties: {
+          privateLinkServiceId: storageId
+          groupIds: ['blob']
         }
       }
     ]
@@ -144,24 +198,9 @@ resource dnsGroupFoundry 'Microsoft.Network/privateEndpoints/privateDnsZoneGroup
   name: 'default'
   properties: {
     privateDnsZoneConfigs: [
-      {
-        name: 'config-foundry'
-        properties: {
-          privateDnsZoneId: dnsZoneFoundry.id
-        }
-      }
-      {
-        name: 'config-openai'
-        properties: {
-          privateDnsZoneId: dnsZoneOpenAI.id
-        }
-      }
-      {
-        name: 'config-aiservices'
-        properties: {
-          privateDnsZoneId: dnsZoneAIServices.id
-        }
-      }
+      { name: 'config-foundry', properties: { privateDnsZoneId: dnsZoneFoundry.id } }
+      { name: 'config-openai', properties: { privateDnsZoneId: dnsZoneOpenAI.id } }
+      { name: 'config-aiservices', properties: { privateDnsZoneId: dnsZoneAIServices.id } }
     ]
   }
 }
@@ -171,12 +210,27 @@ resource dnsGroupSearch 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups
   name: 'default'
   properties: {
     privateDnsZoneConfigs: [
-      {
-        name: 'config-search'
-        properties: {
-          privateDnsZoneId: dnsZoneSearch.id
-        }
-      }
+      { name: 'config-search', properties: { privateDnsZoneId: dnsZoneSearch.id } }
+    ]
+  }
+}
+
+resource dnsGroupCosmos 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-07-01' = {
+  parent: peCosmos
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      { name: 'config-cosmos', properties: { privateDnsZoneId: dnsZoneCosmos.id } }
+    ]
+  }
+}
+
+resource dnsGroupBlob 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-07-01' = {
+  parent: peStorageBlob
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      { name: 'config-blob', properties: { privateDnsZoneId: dnsZoneBlob.id } }
     ]
   }
 }
