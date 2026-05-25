@@ -196,6 +196,17 @@ Pure pragmatism — `capabilityHost` is a single API resource that requires `thr
 
 This was the painful discovery that drove this template's design: a "private Search + Foundry connection" attempt looks like it should work, but Foundry's runtime never picks it up. The capabilityHost is the linchpin, and it demands the full triple.
 
+### Don't confuse Foundry's data layer with *your* tool-server backends
+
+If you compare this template against the [networking deep-dive doc](https://learn.microsoft.com/azure/foundry/agents/concepts/agents-networking-deep-dive), you'll see the doc's example diagram shows **Storage, SQL DB, and Key Vault** behind PEs — not Cosmos and AI Search. That's not a contradiction. There are **two distinct PE layers** in a complete BYO-VNet (or Managed VNet) deployment:
+
+| Layer | Purpose | What sits here | Required? |
+|---|---|---|---|
+| **1. Foundry runtime infrastructure** *(this template)* | Internal data layer the Agent Service itself uses — thread state, agent files, vector stores | **Cosmos + Storage + AI Search** (the Standard Setup trio) | ✅ Mandatory. `capabilityHost` won't bind without all three. |
+| **2. Your tool-server backends** *(not in this template)* | Downstream resources **your agent's tools** call to do business logic | Whatever your tools need — SQL DB, Key Vault, your own Storage, Postgres, private APIs, etc. | Optional. Add as needed. |
+
+The deep-dive uses Storage/SQL DB/Key Vault as common PaaS-with-PE examples; it's purely about Layer 2 traffic flow (Data Proxy → outbound → customer resources) and assumes Layer 1 is already configured. This template builds Layer 1. To add Layer 2 resources, provision them in `infra/resources.bicep`, add a PE into `snet-<prefix>-pe`, link the matching `privatelink.*` zone (most are already linked here), and grant your tool's identity the appropriate RBAC.
+
 ### ⚠️ These three resources are dedicated to Foundry — provision separate ones for your app data
 
 The Cosmos DB, Storage account, and (for the most part) AI Search service deployed by this template are **owned by Foundry at runtime**. Treat them as system-internal infrastructure for the agent runtime, not as general-purpose data stores for your application. Concretely:
