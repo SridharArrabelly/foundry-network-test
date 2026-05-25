@@ -537,6 +537,88 @@ pwsh C:\Path\To\jumpbox-bootstrap.ps1 `
 
 The script is plain Python using `DefaultAzureCredential` — feel free to fork it, swap chunkers, switch from `text-embedding-3-large` to another deployment, or replace `.docx` parsing with PDF/HTML/etc. Nothing in the infrastructure depends on its exact shape.
 
+## Verify the deployment
+
+After `azd up` completes, walk these seven checks. Set the shell vars once:
+
+```bash
+RG=rg-<your-env-name>                  # e.g. rg-foundry-net-dev
+PREFIX=<your-prefix>                   # e.g. foundrynetdev  (run: azd env get-values | grep PREFIX)
+ACCT=ais-$PREFIX
+PROJ=$(az cognitiveservices account project list -n $ACCT -g $RG --query "[0].name" -o tsv)
+SUB=$(az account show --query id -o tsv)
+```
+
+**1. Provisioning succeeded**
+
+```bash
+az group show -n $RG --query "properties.provisioningState" -o tsv    # → Succeeded
+azd env get-values | grep -E 'AI_FOUNDRY|AI_SEARCH|JUMPBOX|BASTION|VNET_ID'
+```
+
+**2. Public network is OFF on all 4 data resources**
+
+```bash
+az cognitiveservices account show -n ais-$PREFIX   -g $RG --query properties.publicNetworkAccess -o tsv
+az search service show           -n srch-$PREFIX   -g $RG --query publicNetworkAccess           -o tsv
+az cosmosdb show                 -n cosmos-$PREFIX -g $RG --query publicNetworkAccess           -o tsv
+az storage account show          -n st$PREFIX      -g $RG --query publicNetworkAccess           -o tsv
+# All four → Disabled  (Enabled is also OK only if you set ALLOWED_IP_ADDRESS for first-deploy access)
+```
+
+**3. Managed VNet outbound rules — 3 managed PEs to Cosmos, Storage, Search**
+
+```bash
+az resource show \
+  --ids "$(az cognitiveservices account show -n $ACCT -g $RG --query id -o tsv)/networkInjections/agent" \
+  --api-version 2025-10-01-preview --query "properties" -o json
+# Then list managed PE outbound rules:
+az rest --method get --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.CognitiveServices/accounts/$ACCT?api-version=2025-10-01-preview&\$expand=managedNetworks" \
+  --query "properties.networkAcls.bypass, properties.networkInjections" -o json
+# Expected: 3 PrivateEndpoint rules (cosmos / storage / search), all Active and Approved
+```
+
+**4. CapabilityHost is bound to all 3 connections**
+
+```bash
+az rest --method get --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.CognitiveServices/accounts/$ACCT/projects/$PROJ/capabilityHosts?api-version=2025-10-01-preview" \
+  --query "value[0].properties.{thread:threadStorageConnections, storage:storageConnections, vector:vectorStoreConnections}" -o json
+# Expect each array to have exactly 1 entry. Empty arrays = capabilityHost failed to bind.
+```
+
+**5. The 3 project connections all use Entra ID (AAD)**
+
+```bash
+az rest --method get --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.CognitiveServices/accounts/$ACCT/projects/$PROJ/connections?api-version=2025-10-01-preview" \
+  --query "value[].{name:name, category:properties.category, auth:properties.authType}" -o table
+# All three rows → authType: AAD
+```
+
+**6. From the jumpbox — DNS resolves to private IPs**
+
+RDP to `vm-$PREFIX` via Bastion (`bas-$PREFIX`), then in PowerShell:
+
+```powershell
+nslookup ais-$env:PREFIX.cognitiveservices.azure.com    # → 10.0.1.x  (PE subnet)
+nslookup srch-$env:PREFIX.search.windows.net            # → 10.0.1.x
+nslookup cosmos-$env:PREFIX.documents.azure.com         # → 10.0.1.x
+nslookup st$env:PREFIX.blob.core.windows.net            # → 10.0.1.x
+```
+
+A public IP back means the matching `privatelink.*` DNS zone isn't linked to your VNet — check `modules/private-endpoints.bicep` outputs.
+
+**7. End-to-end agent smoke test (the one that actually proves it)**
+
+Still on the jumpbox, open `https://ai.azure.com` → your project → **Agents → New agent**:
+
+1. Model: `gpt-4.1-mini` (or whichever deployment was created)
+2. Add tool: **Azure AI Search** → connection auto-selected → index = `documents-index`
+3. Prompt: *"Summarize the February 15 board meeting decisions."*
+
+✅ **Grounded answer** = full path works: Agent compute (MS-managed VNet) → managed PE → AI Search (your subscription) → results.
+
+❌ **"Invalid endpoint or connection failed."** = capabilityHost or connection auth — see the matching row in [Troubleshooting](#troubleshooting) below. Cleanest fix is usually `azd down --purge --force` + `azd up`.
+
 ## Project Structure
 
 ```
