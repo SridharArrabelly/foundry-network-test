@@ -29,85 +29,45 @@ End-to-end private-networking reference for **Azure AI Foundry Agents** (Hosted 
 
 ## Architecture
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│  YOUR SUBSCRIPTION  /  rg-<env>                                            │
-│                                                                            │
-│  ┌─ Your VNet: 10.0.0.0/16 ───────────────────────────────────────────┐    │
-│  │                                                                    │    │
-│  │  ┌─ snet-pe ───────┐  ┌─ snet-vm ───────┐  ┌─ AzureBastion ────┐  │    │
-│  │  │ 10.0.1.0/24     │  │ 10.0.2.0/24     │  │ 10.0.3.0/26       │  │    │
-│  │  │                 │  │                 │  │                   │  │    │
-│  │  │ ● PE → Foundry  │  │ ● Win11 VM (MI) │  │ ● Bastion (Std)   │  │    │
-│  │  │ ● PE → Cosmos   │  │ ● NAT Gateway   │  │                   │  │    │
-│  │  │ ● PE → Storage  │  │   (egress)      │  │                   │  │    │
-│  │  │ ● PE → Search   │  │                 │  │                   │  │    │
-│  │  └─────────────────┘  └─────────────────┘  └───────────────────┘  │    │
-│  │                                                                    │    │
-│  │  Private DNS zones linked to this VNet (resolve PEs to private IP):│    │
-│  │   privatelink.cognitiveservices.azure.com   ─► Foundry PE          │    │
-│  │   privatelink.openai.azure.com              ─► Foundry PE          │    │
-│  │   privatelink.services.ai.azure.com         ─► Foundry PE          │    │
-│  │   privatelink.documents.azure.com           ─► Cosmos PE           │    │
-│  │   privatelink.blob.core.windows.net         ─► Storage PE          │    │
-│  │   privatelink.search.windows.net            ─► Search PE           │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                            │
-│  Resources (publicNetworkAccess=Disabled on all 4):                        │
-│   ┌─ Foundry account (AIServices) ──────────────────────────────────┐      │
-│   │  • System-assigned MI                                           │      │
-│   │  • Managed VNet: AllowOnlyApprovedOutbound (V2)                 │      │
-│   │  • Foundry Project (MI, models, 3 connections)                  │      │
-│   │  • capabilityHost (binds connections to agent runtime)          │      │
-│   │  Models: gpt-4.1-mini, text-embedding-3-large                   │      │
-│   └─────────────────────────────────────────────────────────────────┘      │
-│   ┌─ Cosmos DB (NoSQL) ┐ ┌─ Storage (StorageV2) ┐ ┌─ AI Search (basic) ┐   │
-│   │ publicAccess=Off    │ │ publicAccess=Off       │ │ publicAccess=Off  │   │
-│   │ localAuth=disabled  │ │ sharedKey=disabled     │ │ Index: documents- │   │
-│   │ Used by: agent      │ │ Used by: agent files   │ │  index            │   │
-│   │  threads + msgs     │ │  + scratch space       │ │ Used by: AI Search│   │
-│   └─────────────────────┘ └────────────────────────┘ │  tool / RAG       │   │
-│                                                      └───────────────────┘   │
-└────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  USER(("👤 You"))
 
-                              ┌─ MICROSOFT-MANAGED ─────────────────────┐
-                              │  Foundry Managed VNet (per account)     │
-                              │                                         │
-                              │  ┌───────────────────────────────────┐  │
-                              │  │ Agent Runtime + Evaluations       │  │
-                              │  │ (Microsoft-owned compute)         │  │
-                              │  └────────────────┬──────────────────┘  │
-                              │                   │ project MI token    │
-                              │                   │ (via capabilityHost)│
-                              │                   ▼                     │
-                              │  ┌───────────────────────────────────┐  │
-                              │  │ Managed Private Endpoints         │  │
-   ┌──────────────────────────┼──┤   • → your Cosmos                 │  │
-   │  Three SEPARATE PEs to   │  │   • → your Storage                │  │
-   │  the same backend        │  │   • → your Search                 │  │
-   │  resources, from MS's    │  └───────────────────────────────────┘  │
-   │  hidden VNet to yours.   │                                         │
-   │  Created automatically   │  Outbound rules (Approved only):        │
-   │  by capabilityHost,      │   ✓ AzureActiveDirectory                │
-   │  auto-approved by your   │   ✓ AzureMachineLearning                │
-   │  Foundry account MI.     │   ✓ Managed PE → Cosmos                 │
-   └──────────────────────────┤   ✓ Managed PE → Storage                │
-                              │   ✓ Managed PE → Search                 │
-                              └─────────────────────────────────────────┘
+  subgraph YOUR["🟦 Your VNet — 10.0.0.0/16"]
+    direction TB
+    subgraph SNET_PE["snet-pe (10.0.1.0/24)"]
+      PEs["4 PEs (yours)<br/>Foundry · Cosmos · Storage · Search"]:::pe
+    end
+    subgraph SNET_VM["snet-vm + AzureBastion"]
+      VM["Jumpbox + Bastion + NAT GW"]:::yours
+    end
+  end
 
-           ▲                                              ▲
-           │  Portal traffic (you → Foundry)              │  Agent runtime traffic
-           │  through YOUR pe-subnet PEs                  │  through Foundry-managed PEs
-           │                                              │  (separate physical PEs!)
-           │                                              │
-   ┌───────┴──────────┐                          ┌────────┴──────────┐
-   │ You (via Bastion │                          │ Agent: chat,      │
-   │ → jumpbox VM)    │                          │ AI Search tool,   │
-   │ ai.azure.com     │                          │ file uploads      │
-   └──────────────────┘                          └───────────────────┘
+  subgraph MSVNET["🟪 Microsoft-managed VNet (hidden)"]
+    AGENT["Agent Runtime + Evaluations<br/>(MS-owned compute)"]:::msft
+    MPEs["3 managed PEs (MS-created)<br/>→ Cosmos · Storage · Search"]:::msftpe
+    AGENT --> MPEs
+  end
+
+  subgraph BACKEND["🟦 Data plane — publicNetworkAccess: Disabled"]
+    FND["Foundry account (AIServices)<br/>+ Project + capabilityHost"]:::yours
+    DATA["Cosmos · Storage · AI Search"]:::yours
+  end
+
+  USER ==> VM ==> PEs
+  PEs --> FND
+  PEs --> DATA
+  MPEs --> DATA
+
+  classDef yours fill:#dbeafe,stroke:#1e3a8a,color:#000
+  classDef msft fill:#ede9fe,stroke:#5b21b6,color:#000
+  classDef pe fill:#fed7aa,stroke:#9a3412,color:#000
+  classDef msftpe fill:#fed7aa,stroke:#5b21b6,stroke-dasharray: 5 5
 ```
 
-> **Key insight:** there are **two completely separate network paths** to the same backend resources — one set of PEs in *your* VNet (for portal/jumpbox access) and a second set of PEs in *Microsoft's* managed VNet (for agent-runtime access). Both are private; neither uses the public internet. The dual-PE design is what lets you keep `publicNetworkAccess=Disabled` on all four data resources without breaking the agent runtime.
+> **Key insight:** there are **two completely separate network paths** to the same backend resources — solid PEs in *your* VNet (portal/jumpbox path) and dashed PEs in *Microsoft's* managed VNet (agent runtime path). Both are private; neither uses the public internet. The dual-PE design is what lets you keep `publicNetworkAccess=Disabled` on every data resource without breaking the agent runtime.
+
+📐 **For deeper diagrams** (network topology + DNS resolution, two-phase RBAC chain, request sequence): see [`docs/diagrams.md`](docs/diagrams.md).
 
 ## Understanding the design (why is this so complex?)
 
@@ -273,155 +233,50 @@ Do **not** modify the Foundry-owned trio. If you do, you may see broken thread s
 
 `azd up` executes the bicep modules in a strict order. The ordering is **not cosmetic** — it's enforced by `dependsOn` in `infra/resources.bicep` because each step relies on resources, identities, or network plumbing from the previous one.
 
-```
-┌─ 1. RESOURCE GROUP ─────────────────────────────────────────┐
-│  rg-<env> — container for everything                        │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 2. NETWORK (deploy-network) ───────────────────────────────┐
-│  • VNet (10.0.0.0/16)                                       │
-│  • Subnets: snet-<prefix>-pe, snet-<prefix>-vm,             │
-│             AzureBastionSubnet                              │
-│  • NSGs (per subnet)                                        │
-│  • NAT Gateway + Public IP (egress for VM subnet)           │
-│  Everything else attaches into this VNet.                   │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 3. BYO DEPENDENCIES (parallel) ────────────────────────────┐
-│  deploy-cosmos    → Cosmos DB NoSQL (publicNetwork=Disabled)│
-│  deploy-storage   → Storage StorageV2 (publicNetwork=Disabled, sharedKey=disabled) │
-│  deploy-ai-search → Azure AI Search (publicNetwork=Disabled)│
-│  All three exist as private-only resources; nothing is      │
-│  reachable yet because there are no PEs / DNS zones.        │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 4. FOUNDRY ACCOUNT (deploy-foundry-account) ───────────────┐
-│  • Microsoft.CognitiveServices/accounts (AIServices kind)   │
-│  • Managed VNet: AllowOnlyApprovedOutbound, V2, Standard SKU│
-│  • System-assigned managed identity                         │
-│  • Account-level "Azure AI Enterprise Network Connection    │
-│    Approver" role grant so it can auto-approve its own      │
-│    managed PEs when capabilityHost creates them.            │
-│                                                             │
-│  Important: the agent runtime does NOT run in your VNet.    │
-│  It runs in a Microsoft-managed VNet that's attached to     │
-│  this account. Outbound from there only reaches resources   │
-│  via Managed Private Endpoints (created in step 8).         │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 5. PRIVATE ENDPOINTS (deploy-private-endpoints) ───────────┐
-│  Inside YOUR pe-subnet, with private DNS zones linked to    │
-│  your VNet — serialized to avoid IfMatchPreconditionFailed: │
-│  • PE → Foundry account (3 zones: cognitiveservices,        │
-│    openai, services.ai)                                     │
-│  • PE → Cosmos          (documents.azure.com)               │
-│  • PE → Storage blob    (blob.core.windows.net)             │
-│  • PE → AI Search       (search.windows.net)                │
-│  After this, your jumpbox and any other VNet workload can   │
-│  talk to all 4 resources over private IPs.                  │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 6. FOUNDRY PROJECT (deploy-foundry-project) ───────────────┐
-│  • Microsoft.CognitiveServices/accounts/projects            │
-│  • Project-level system-assigned managed identity           │
-│  • Model deployments: gpt-4.1-mini, text-embedding-3-large  │
-│  • 3 connections (Cosmos, Storage, Search) — authType=AAD   │
-│                                                             │
-│  At this point the connections are just "pointers" — they   │
-│  have no runtime token. The capabilityHost in step 8 is     │
-│  what makes the project MI usable for them at agent runtime.│
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 7. PRE-CAPHOST RBAC (deploy-byo-roles) ────────────────────┐
-│  Grant the project MI on the 3 BYO resources:               │
-│  • Storage Blob Data Contributor      → on Storage          │
-│  • Cosmos DB Operator                 → on Cosmos           │
-│  • Search Index Data Contributor      → on AI Search        │
-│  • Search Service Contributor         → on AI Search        │
-│                                                             │
-│  These MUST exist before capabilityHost provisions.         │
-│  Otherwise capabilityHost validation fails or hangs on its  │
-│  internal reachability checks.                              │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 8. CAPABILITY HOST (deploy-capability-host) ★KEY STEP★ ────┐
-│  Microsoft.CognitiveServices/accounts/projects/             │
-│    capabilityHosts (capabilityHostKind=Agents)              │
-│                                                             │
-│  This single resource does THREE things:                    │
-│   a. Binds the 3 connection IDs to the agent runtime:       │
-│        threadStorageConnections = [Cosmos connection]       │
-│        storageConnections        = [Storage connection]     │
-│        vectorStoreConnections    = [AI Search connection]   │
-│   b. Triggers Foundry to create Managed Private Endpoints   │
-│      from the MS-managed VNet → your Cosmos/Storage/Search. │
-│   c. Waits for those managed PEs to be approved (auto by    │
-│      step 4's role) and reachable.                          │
-│                                                             │
-│  This is the SLOW step: typically 5–15 minutes.             │
-│  Without capabilityHost, the AAD connections from step 6    │
-│  have no token in the agent runtime context → agent run     │
-│  fails with "Invalid endpoint or connection failed".        │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 9. POST-CAPHOST RBAC (deploy-post-roles) ──────────────────┐
-│  Now that the project's workspace GUID exists, grant:       │
-│  • Storage Blob Data Owner — scoped by ABAC condition to    │
-│    containers matching '<workspaceGuid>*-azureml-agent'     │
-│    so each project only owns its own agent containers.      │
-│  • Cosmos SQL Built-In Data Contributor (role id            │
-│    00000000-0000-0000-0000-000000000002) — data-plane RBAC  │
-│    on the SQL API; required because Cosmos has              │
-│    disableLocalAuth=true.                                   │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 10. JUMPBOX VM (deploy-jumpbox) ───────────────────────────┐
-│  • Windows 11 VM (Standard_B2ms) in snet-<prefix>-vm        │
-│  • System-assigned MI with Search Index Data Contributor on │
-│    the Search service (so the indexer script can write)     │
-│  • Azure Bastion (Standard SKU, native client tunneling)    │
-│  • NAT Gateway for outbound internet (apt/git/pip)          │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-┌─ 11. POST-PROVISION HOOK (scripts/postprovision.*) ─────────┐
-│  Runs after Bicep deployment succeeds:                      │
-│  • Pulls the repo onto the jumpbox via Run-Command          │
-│  • Installs Python + dependencies                           │
-│  • Uploads files from data/ to Storage blob container       │
-│  • Creates the AI Search index, indexer, and skillset       │
-│  • Runs the indexer to populate vector embeddings           │
-└─────────────────────────────────────────────────────────────┘
-            ↓
-✅ Ready: open Foundry portal from the jumpbox and chat with
-   an agent that has AI Search as a tool.
+```mermaid
+flowchart TD
+  S1[1\. Resource Group]:::yours
+  S2[2\. Network<br/>VNet · 3 subnets · NSGs · NAT GW]:::yours
+  S3[3\. BYO Dependencies in parallel<br/>Cosmos · Storage · AI Search<br/>all publicNetworkAccess=Disabled]:::yours
+  S4[4\. Foundry Account<br/>AIServices kind · Managed VNet V2<br/>+ Account MI gets Network Connection Approver role]:::yours
+  S5[5\. Private Endpoints in your snet-pe<br/>PE → Foundry · Cosmos · Storage · Search<br/>+ Private DNS zones]:::pe
+  S6[6\. Foundry Project<br/>Project MI · model deployments<br/>3 AAD connections]:::yours
+  S7[7\. Pre-caphost RBAC<br/>Project MI on Cosmos / Storage / Search<br/>★ must precede step 8 ★]:::id
+  S8{{8\. capabilityHost ★KEY STEP★<br/>Binds connections to runtime<br/>Triggers MS to create managed PEs<br/>Slowest step: 5–15 min}}:::id
+  S9[9\. Post-caphost RBAC<br/>Storage Blob Data Owner with ABAC<br/>Cosmos SQL Data Contributor]:::id
+  S10[10\. Jumpbox VM + Bastion + NAT GW]:::yours
+  S11[11\. Postprovision hook<br/>seeds AI Search index from data/]:::yours
+  DONE([✅ Ready — open Foundry portal from jumpbox]):::yours
+
+  S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9 --> S10 --> S11 --> DONE
+
+  classDef yours fill:#dbeafe,stroke:#1e3a8a,color:#000
+  classDef pe fill:#fed7aa,stroke:#9a3412,color:#000
+  classDef id fill:#d1fae5,stroke:#047857,color:#000
 ```
 
 > 💡 **`setup_aisearch_index.py` is a demonstration, not a runtime requirement.** It exists only to prove the end-to-end private path works — agent runtime → Foundry-managed PE → AI Search → results — by creating a `documents-index` populated from the sample `.docx` files in `data/`. Hosted/Prompt agents and the Foundry runtime itself do **not** need this script or this index. Foundry creates its own indexes on demand (e.g. `vs_*`, `chunks_*` when the **File Search** tool is used). The `documents-index` is here so that, on day one, you can attach the **AI Search** tool to an agent and prove queries flow through private networking. See [Adapting the indexer for your data](#adapting-the-indexer-for-your-data) below.
 
 ### Runtime data flow (after deploy)
 
+```mermaid
+flowchart LR
+  subgraph USERPATH["User path (portal traffic)"]
+    U(("You")) --> BAS[Bastion → Jumpbox]:::yours
+    BAS -->|via your pep-foundry| FND[Foundry account / project / agent]:::yours
+  end
+  subgraph AGENTPATH["Agent path (runtime traffic — separate physical PEs)"]
+    RUN[Agent runtime<br/>MS-managed VNet]:::msft
+    RUN -->|managed-pe| COS[Cosmos<br/>thread state]:::yours
+    RUN -->|managed-pe| ST[Storage<br/>files / agent dirs]:::yours
+    RUN -->|managed-pe| SR[AI Search<br/>RAG / embeddings]:::yours
+    RUN -->|intra-account, no PE| OAI[OpenAI models]:::yours
+  end
+  classDef yours fill:#dbeafe,stroke:#1e3a8a,color:#000
+  classDef msft fill:#ede9fe,stroke:#5b21b6,color:#000
 ```
-┌─ User path (you → Foundry) ──────────────────────────────┐
-│                                                           │
-│   You (jumpbox via Bastion)                              │
-│        ↓ private IP through pe-subnet PE                 │
-│   ai.azure.com / Foundry account / project / agent       │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
 
-┌─ Agent path (Foundry → BYO resources) ────────────────────┐
-│                                                           │
-│   Agent runtime (MS-managed VNet)                        │
-│        ↓ project MI token (via capabilityHost binding)   │
-│        ↓ traffic through Foundry-managed PEs             │
-│   ┌────────────┬─────────────┬──────────────┐            │
-│   ↓            ↓             ↓              ↓            │
-│  Cosmos     Storage       AI Search      OpenAI models   │
-│ (thread    (file ups,    (RAG index,    (in-account,     │
-│  state)     agent dirs)   embeddings)    no PE needed)   │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
-```
+📐 **For the full request sequence** (autonumbered, step-by-step prompt → answer): see [`docs/diagrams.md` → Request flow](docs/diagrams.md#4-request-flow--what-happens-between-prompt-and-answer).
 
 Key insight: **two separate PE paths exist** — your VNet's PEs for management/portal traffic, and Foundry's auto-created managed PEs for agent-runtime traffic. They are different network paths to the same backend resources.
 
