@@ -82,6 +82,29 @@ After `azd up` completes, run the **[7 copy-paste CLI checks](https://github.com
 
 1. provisioning state → 2. public network OFF on all 4 data resources → 3. managed PEs approved → 4. `capabilityHost` bound to all 3 connections → 5. connections use `authType: AAD` → 6. DNS resolves to private IPs from jumpbox → 7. agent smoke test returns `completed`
 
+## Sample data and the test index
+
+The `data/` folder ships with `sample_document.pdf` as a generic placeholder corpus, used purely to prove the private **AI Search** path works end-to-end. During `azd up`, the postprovision hook runs `scripts/setup_aisearch_index.py` on the jumpbox, which:
+
+- Creates an AI Search index named `documents-index` (override with the `AI_SEARCH_INDEX_NAME` env var)
+- Reads every `.docx` and `.pdf` file under `data/`, chunks the content, generates embeddings via Azure OpenAI, and uploads them
+
+To test with your own corpus, drop your `.docx` / `.pdf` files into `data/` and re-run either:
+
+```bash
+azd provision    # re-runs the full postprovision hook
+# or, from the jumpbox directly:
+python scripts/setup_aisearch_index.py
+```
+
+Once testing is done, you have two options — neither affects the rest of the infrastructure:
+
+- **Delete the sample index** when you no longer need it:
+  ```bash
+  az search index delete --service-name <ai-search-name> --name documents-index -y
+  ```
+- **Point the agent at your own existing AI Search index** instead — set `AI_SEARCH_INDEX_NAME` in your `.env` to your index name before `azd provision`, and skip the sample indexer by emptying `data/`.
+
 ## Troubleshooting
 
 The single most common silent failure is an agent run that returns:
