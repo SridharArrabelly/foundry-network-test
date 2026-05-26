@@ -78,27 +78,21 @@ azd down
 
 ## Validate the deployment
 
-After deployment, validate the following:
+After `azd up` completes, run the **[7 copy-paste CLI checks](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md#cli-verification--7-concrete-checks)** to prove the full chain works end-to-end:
 
-- You can reach the Foundry experience through the intended private access path
-- The agent can call AI Search
-- Thread state is written to Cosmos DB
-- File operations land in Storage
-- Public network access is not required on the core data resources
-
-For a full checklist, see the [Validation checklist](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md).
+1. provisioning state → 2. public network OFF on all 4 data resources → 3. managed PEs approved → 4. `capabilityHost` bound to all 3 connections → 5. connections use `authType: AAD` → 6. DNS resolves to private IPs from jumpbox → 7. agent smoke test returns `completed`
 
 ## Troubleshooting
 
-If deployment succeeds but the scenario does not work end-to-end, check these first:
+The single most common silent failure is an agent run that returns:
 
-- Private endpoint provisioning and approval state
-- Private DNS resolution
-- RBAC timing and sequencing
-- Post-provision steps that depend on resource readiness
-- Region-specific support or platform constraints
+```
+Invalid endpoint or connection failed
+```
 
-Deeper explanation: [capabilityHost, RBAC, and DNS](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/capabilityhost-rbac-dns.md).
+That almost always means `capabilityHost` is missing or unbound. Start with [Design rationale → What happens if you skip capabilityHost](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/design-rationale.md#what-happens-if-you-skip-capabilityhost), then run [validation check #4](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md#check-4--capabilityhost-is-bound-to-all-3-connections).
+
+For other failure modes (deployment errors, RBAC, DNS, region capacity), see the [Troubleshooting order](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/capabilityhost-rbac-dns.md#troubleshooting-order) and [Known limitations](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/known-limitations.md).
 
 ## Related docs
 
