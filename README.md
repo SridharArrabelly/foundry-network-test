@@ -40,8 +40,8 @@ This sample demonstrates that an Azure AI Foundry agent can:
 
 See the detailed architecture walkthrough here:
 
-- [Managed VNet architecture](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/architecture-diagrams/managed-vnet.md)
-- [Side-by-side comparison with BYO VNet](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/architecture-diagrams/side-by-side.md)
+- [Managed VNet architecture](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/architecture-diagrams/managed-vnet.md)
+- [Side-by-side comparison with BYO VNet](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/architecture-diagrams/side-by-side.md)
 
 At a high level:
 
@@ -86,7 +86,7 @@ After deployment, validate the following:
 - File operations land in Storage
 - Public network access is not required on the core data resources
 
-For a full checklist, see the [Validation checklist](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/validation-checklist.md).
+For a full checklist, see the [Validation checklist](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md).
 
 ## Troubleshooting
 
@@ -98,23 +98,16 @@ If deployment succeeds but the scenario does not work end-to-end, check these fi
 - Post-provision steps that depend on resource readiness
 - Region-specific support or platform constraints
 
-Deeper explanation: [capabilityHost, RBAC, and DNS](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/capabilityhost-rbac-dns.md).
+Deeper explanation: [capabilityHost, RBAC, and DNS](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/capabilityhost-rbac-dns.md).
 
 ## Related docs
 
 - [Compare with BYO VNet](https://github.com/SridharArrabelly/foundry-private-byo-vnet)
 - [Decision hub](https://github.com/SridharArrabelly/foundry-private-networking-samples)
-- [Managed VNet architecture](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/architecture-diagrams/managed-vnet.md)
-- [Side-by-side architecture comparison](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/architecture-diagrams/side-by-side.md)
-- [Shared data plane](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/shared-data-plane.md)
-- [capabilityHost, RBAC, and DNS](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/capabilityhost-rbac-dns.md)
-- [Validation checklist](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/validation-checklist.md)
-- [Known limitations](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/docs/lean-readme/docs/known-limitations.md)
-
-## Why this repo exists
-
-This repo is a practical reference for private networking with Foundry Agents. Use it to:
-
-- Validate a customer's private-networking configuration
-- Give teams a clean baseline for private Foundry deployments
-- Accelerate architecture discussions without starting from scratch
+- [Managed VNet architecture](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/architecture-diagrams/managed-vnet.md)
+- [Side-by-side architecture comparison](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/architecture-diagrams/side-by-side.md)
+- [Design rationale](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/design-rationale.md) — the four "why" questions, including what to check when you see `Invalid endpoint or connection failed`
+- [Shared data plane](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/shared-data-plane.md)
+- [capabilityHost, RBAC, and DNS](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/capabilityhost-rbac-dns.md)
+- [Validation checklist](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md) — 7 copy-paste CLI checks
+- [Known limitations](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/known-limitations.md)
