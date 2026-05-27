@@ -92,9 +92,7 @@ azd down
 
 ## Validate the deployment
 
-After `azd up` completes, run the **[7 copy-paste CLI checks](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md#cli-verification--7-concrete-checks)** to prove the full chain works end-to-end:
-
-1. provisioning state → 2. public network OFF on all 4 data resources → 3. managed PEs approved → 4. `capabilityHost` bound to all 3 connections → 5. connections use `authType: AAD` → 6. DNS resolves to private IPs from jumpbox → 7. agent smoke test returns `completed`
+After `azd up` completes, run the **[7 copy-paste CLI checks](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md#cli-verification--7-concrete-checks)** in the parent docs. All 7 apply to Managed VNet (Check 3 confirms the MS-managed PEs were auto-approved by the Foundry account MI).
 
 ## Sample data and the test index
 
@@ -133,12 +131,7 @@ For other failure modes (deployment errors, RBAC, DNS, region capacity), see the
 
 ## Related docs
 
-- [Compare with BYO VNet](https://github.com/SridharArrabelly/foundry-private-byo-vnet)
-- [Decision hub](https://github.com/SridharArrabelly/foundry-private-networking-samples)
-- [Managed VNet architecture](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/architecture-diagrams/managed-vnet.md)
+- [Decision hub (parent)](https://github.com/SridharArrabelly/foundry-private-networking-samples) — when to pick Managed VNet vs BYO
+- [Compare with BYO VNet](https://github.com/SridharArrabelly/foundry-private-byo-vnet) — the other sample in this family
+- [Managed VNet architecture](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/architecture-diagrams/managed-vnet.md) — diagram + component walkthrough
 - [Side-by-side architecture comparison](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/architecture-diagrams/side-by-side.md)
-- [Design rationale](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/design-rationale.md) — the four "why" questions, including what to check when you see `Invalid endpoint or connection failed`
-- [Shared data plane](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/shared-data-plane.md)
-- [capabilityHost, RBAC, and DNS](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/capabilityhost-rbac-dns.md)
-- [Validation checklist](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/validation-checklist.md) — 7 copy-paste CLI checks
-- [Known limitations](https://github.com/SridharArrabelly/foundry-private-networking-samples/blob/master/docs/known-limitations.md)
