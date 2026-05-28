@@ -4,6 +4,9 @@ param location string
 @description('Resource name prefix')
 param prefix string
 
+@description('Deploy NAT Gateway on the VM subnet. Only needed when a jumpbox lives in the subnet and needs outbound internet (pip install, GitHub).')
+param deployNatGateway bool = true
+
 var vnetName = 'vnet-${prefix}'
 var peSubnetName = 'snet-${prefix}-pe'
 
@@ -11,9 +14,9 @@ var peSubnetName = 'snet-${prefix}-pe'
 // Default outbound access for VMs is being retired by Azure, so VMs without an
 // explicit egress path lose internet access. Attach a NAT Gateway to the VM
 // subnet so the jumpbox can reach the internet (pip install, GitHub, etc.)
-// without exposing the VM via a public IP.
+// without exposing the VM via a public IP. Skipped when no jumpbox is deployed.
 
-resource natPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
+resource natPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = if (deployNatGateway) {
   name: 'pip-${prefix}-natgw'
   location: location
   sku: {
@@ -24,7 +27,7 @@ resource natPip 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
   }
 }
 
-resource natGateway 'Microsoft.Network/natGateways@2024-07-01' = {
+resource natGateway 'Microsoft.Network/natGateways@2024-07-01' = if (deployNatGateway) {
   name: 'natgw-${prefix}'
   location: location
   sku: {
@@ -61,9 +64,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-07-01' = {
         name: 'snet-${prefix}-vm'
         properties: {
           addressPrefix: '10.0.2.0/24'
-          natGateway: {
+          natGateway: deployNatGateway ? {
             id: natGateway.id
-          }
+          } : null
         }
       }
       {
